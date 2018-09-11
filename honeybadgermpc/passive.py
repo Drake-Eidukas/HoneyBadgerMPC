@@ -292,6 +292,7 @@ async def test_prog2(context):
         assert s == 0
     print('[%d] Finished' % (context.myid,))
 
+
 async def beaver_mult(context, x, y, a, b, ab):
     D = await (x - a).open()
     E = await (y - b).open()
@@ -300,7 +301,6 @@ async def beaver_mult(context, x, y, a, b, ab):
     xy = context.Share(D*E) + D*b + E*a + ab
 
     return context.Share( await xy.open() )
-
 
 
 async def test_prog3(context):
@@ -316,12 +316,10 @@ async def test_prog3(context):
         rx = await (await mul(_r, x)).open()
         return (1/rx) * _r
 
-    # Example of jubjub
-    d = -(Field(10240)/Field(10241))
-    curve = Jubjub(Field(-1), d)
+    # curve = Jubjub(Field(-1), d)
 
-    P = Point(curve, Field(0x18ea85ca00cb9d895cb7b8669baa263fd270848f90ebefabe95b38300e80bde1), Field(0x255fa75b6ef4d4e1349876df94ca8c9c3ec97778f89c0c3b2e4ccf25fdf9f7c1))
-    Q = Point(curve, Field(0x1624451837683b2c4d2694173df71c9174ffcc613788eef3a9c7a7d0011476fa), Field(0x6f76dbfd7c62860d59f5937fa66d0571158ff68f28ccd83a4cd41b9918ee8fe2))
+    P = Point(Field(0x18ea85ca00cb9d895cb7b8669baa263fd270848f90ebefabe95b38300e80bde1), Field(0x255fa75b6ef4d4e1349876df94ca8c9c3ec97778f89c0c3b2e4ccf25fdf9f7c1))
+    Q = Point(Field(0x1624451837683b2c4d2694173df71c9174ffcc613788eef3a9c7a7d0011476fa), Field(0x6f76dbfd7c62860d59f5937fa66d0571158ff68f28ccd83a4cd41b9918ee8fe2))
     
     R = P + Q
 
@@ -330,9 +328,7 @@ async def test_prog3(context):
     x2 = context.get_zero() + context.Share(Q.x)
     y2 = context.get_zero() + context.Share(Q.y)
 
-    # p = Point(curve, p_x, p_y)
-    # q = Point(curve, q_x, q_y)
-    dx1x2y1y2 = d * await mul(await mul(x1, x2), await mul(y1, y2))
+    dx1x2y1y2 = P.curve.d * await mul(await mul(x1, x2), await mul(y1, y2))
     x3num = (await mul(x1, y2) + await mul(y1, x2))
     x3den = (context.Share(1) + dx1x2y1y2)
     x3 = await mul(x3num, await inverse(x3den))
@@ -344,9 +340,43 @@ async def test_prog3(context):
 
     assert X3 == R.x and Y3 == R.y
 
-    # print("P:", P)
-    # print("Q:", Q)
-    # print("P+Q:", P + Q)
+async def single_add(context, p, q):
+    def mul(x, y):
+        a, b, ab = context.get_triple()
+        return beaver_mult(context, x, y, a, b, ab)
+
+    # Stream of random numbers for taking inverses
+    async def inverse(x):
+        _r = context.get_rand()
+        # return [r] / open([r * x])
+        rx = await (await mul(_r, x)).open()
+        return (1/rx) * _r
+
+    x1 = context.get_zero() + context.Share(p.x)
+    y1 = context.get_zero() + context.Share(p.y)
+    x2 = context.get_zero() + context.Share(q.x)
+    y2 = context.get_zero() + context.Share(q.y)
+
+    dx1x2y1y2 = p.curve.d * await mul(await mul(x1, x2), await mul(y1, y2))
+    x3num = (await mul(x1, y2) + await mul(y1, x2))
+    x3den = (context.Share(1) + dx1x2y1y2)
+    x3 = await mul(x3num, await inverse(x3den))
+    y3num = (await mul(y1, y2) + await mul(x1, x2))
+    y3den = (context.Share(1) - dx1x2y1y2)
+    y3 = await mul(y3num, await inverse(y3den))
+
+    X3, Y3 = await x3.open(), await y3.open()
+
+    return Point(X3, Y3)
+
+    
+async def test_jubjub_add(context):
+    P = Point(Field(0x18ea85ca00cb9d895cb7b8669baa263fd270848f90ebefabe95b38300e80bde1), Field(0x255fa75b6ef4d4e1349876df94ca8c9c3ec97778f89c0c3b2e4ccf25fdf9f7c1))
+    Q = Point(Field(0x1624451837683b2c4d2694173df71c9174ffcc613788eef3a9c7a7d0011476fa), Field(0x6f76dbfd7c62860d59f5937fa66d0571158ff68f28ccd83a4cd41b9918ee8fe2))
+
+    result = await single_add(context, P, Q)
+    print("result: ", result.x, result.y)
+
 
 # Run some test cases
 if __name__ == '__main__':
@@ -364,5 +394,6 @@ if __name__ == '__main__':
         loop.run_until_complete(runProgramInNetwork(test_prog1, 3, 2))
         loop.run_until_complete(runProgramInNetwork(test_prog2, 3, 2))
         loop.run_until_complete(runProgramInNetwork(test_prog3, 3, 2))
+        loop.run_until_complete(runProgramInNetwork(test_jubjub_add, 3, 2))
     finally:
         loop.close()

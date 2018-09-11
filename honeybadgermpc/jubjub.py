@@ -1,8 +1,12 @@
+from .field import GF
 # Jubjub
+
+Field = GF(0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001)
+
 class Jubjub(object):
-   def __init__(self, a, d):
+   def __init__(self, a = Field(-1), d = -(Field(10240)/Field(10241))):
       self.a = a
-      self.d = d
+      self.d = d 
 
       self.disc = a * d * (a - d) * (a - d) * (a - d) * (a - d)
       self.j = 16 * (a * a + 14 * a * d + d * d) * (a * a + 14 * a * d + d * d) * \
@@ -21,7 +25,6 @@ class Jubjub(object):
 
    def __str__(self):
       return '%sx^2 + y^2 = 1 + %sx^2y^2' % (self.a, self.d)
-      # return "Original: "
 
 
    def __repr__(self):
@@ -32,14 +35,13 @@ class Jubjub(object):
       return (self.a, self.d) == (other.a, other.d)
 
 
-
 class Point(object):
-   def __init__(self, curve, x, y):
-      self.curve = curve # the curve containing this point
+   def __init__(self, x, y):
+      self.curve = Jubjub() # the curve containing this point
       self.x = x
       self.y = y
 
-      if not curve.testPoint(x,y):
+      if not self.curve.testPoint(x,y):
          raise Exception("The point %s is not on the given curve %s!" % (self, curve))
 
 
@@ -52,7 +54,7 @@ class Point(object):
 
 
    def __neg__(self):
-      return Point(self.curve, -self.x, self.y)
+      return Point(self.curve, Field(-self.x), self.y)
 
 
    def __add__(self, Q):
@@ -66,7 +68,7 @@ class Point(object):
       x3 = ((x1 * y2) + (y1 * x2)) / (1 + self.curve.d * x1 * x2 * y1 * y2)
       y3 = ((y1 * y2) + (x1 * x2)) / (1 - self.curve.d * x1 * x2 * y1 * y2)
 
-      return Point(self.curve, x3, y3)
+      return Point(x3, y3)
 
 
    def double(self):
