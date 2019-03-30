@@ -4,7 +4,7 @@ import logging
 from honeybadgermpc.mpc import TaskProgramRunner
 from honeybadgermpc.preprocessing import PreProcessedElements, PreProcessingConstants, wait_for_preprocessing, preprocessing_done
 
-from .jubjub import *
+from .jubjub import Point, Field, Jubjub
 
 # Diffie-Hellman Key-Exchange
 # Link: https://en.wikipedia.org/wiki/Diffie%E2%80%93Hellman_key_exchange#Operation_with_more_than_two_parties
@@ -30,7 +30,16 @@ async def async_exchanging_in_processes(peers, n, t, k, run_id, node_id):
     logging.info('run_id: ' + str(run_id))
     logging.info('node_id: ' + str(node_id))
 
+    task_runner = TaskProgramRunner(n, t)
+
     return True
+
+
+async def generate_shared_key(context):
+    if context.myid == 0:
+        logging.info(f"context: {str(context)}")
+        logging.info(f"context.sid: {context.sid}")
+        logging.info(f"context.myid: {context.myid}")
 
 
 def _preprocess(config):
@@ -82,15 +91,20 @@ if __name__ == "__main__":
         # Preprocess elements for computation
         _preprocess(HbmpcConfig)
 
-        loop.run_until_complete(
-            async_exchanging_in_processes(
-                HbmpcConfig.peers,
-                HbmpcConfig.N,
-                HbmpcConfig.t,
-                k,
-                run_id,
-                HbmpcConfig.my_id
-            )
-        )
+        program_runner = TaskProgramRunner(
+            HbmpcConfig.N, HbmpcConfig.t, {'g': Point(0, 1)})
+        program_runner.add(generate_shared_key)
+        loop.run_until_complete(program_runner.join())
+
+        # loop.run_until_complete(
+        #     async_exchanging_in_processes(
+        #         HbmpcConfig.peers,
+        #         HbmpcConfig.N,
+        #         HbmpcConfig.t,
+        #         k,
+        #         run_id,
+        #         HbmpcConfig.my_id
+        #     )
+        # )
     finally:
         loop.close()
