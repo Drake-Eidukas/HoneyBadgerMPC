@@ -1,8 +1,9 @@
-from honeybadgermpc.field import GF
+from honeybadgermpc.field import GF, GFElement
 from honeybadgermpc.mixins import DoubleSharing
+from honeybadgermpc.elliptic_curve import Subgroup
 import asyncio
 
-Field = GF(0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001)
+Field = GF(Subgroup.BLS12_381)
 
 
 class Jubjub(object):
@@ -10,14 +11,17 @@ class Jubjub(object):
     JubJub is a twisted Edwards curve of the form -x^2 + y^2 = 1 + dx^2y^2
     """
 
-    def __init__(self, a: Field = Field(-1), d: Field = -(Field(10240)/Field(10241))):
-        self.a = a
-        self.d = d
+    def __init__(self, a: GFElement = None, d: GFElement = None, field=Field):
+        # Workaround so that we can simply define field to define these in
+        # terms of a given field
+        self.a = field(-1) if a is None else a
+        self.d = -(field(10240)/field(10241)) if d is None else d
 
-        self.disc = a * d * (a - d) * (a - d) * (a - d) * (a - d)
+        self.disc = self.a * self.d * (self.a - self.d) * (self.a - self.d) * \
+            (self.a - self.d) * (self.a - self.d)
 
         # TODO: document this term and j
-        a_d_term = a * a + 14 * a * d + d * d
+        a_d_term = self.a * self.a + 14 * self.a * self.d + self.d * self.d
         self.j = 16 * a_d_term * a_d_term * a_d_term / self.disc
 
         if not self.isSmooth():
@@ -165,24 +169,14 @@ async def point_shares_on_curve(context, curve, xs, ys):
     if not isinstance(curve, Jubjub):
         raise Exception("The curve %s is not a Jubjub curve!" % curve)
 
-    a_s, d_s = context.Share(curve.a), context.Share(curve.d)
-    one = context.Share(1)
-
     x_sq = await(xs * xs)
     y_sq = await(ys * ys)
 
-    logging.debug(f"type of x_sq({x_sq}): {type(x_sq)}")
-    logging.debug(f"type of sum({x_sq + y_sq}): {type(x_sq + y_sq)}")
-    x_y_sq_sum = x_sq + y_sq
-    lhs = await(x_y_sq_sum * a_s)
+    # ax^2 + y^2
+    lhs = await(context.Share(curve.a) * x_sq) + y_sq
 
-    logging.debug(f"type of lhs({lhs}): {type(lhs)}")
-
-    x_sq_y_sq = await (x_sq * y_sq)
-    rhs = await(await(x_sq_y_sq * d_s) + one)
-    logging.debug(f"type of x_sq_y_sq({x_sq_y_sq}): {type(x_sq_y_sq)}")
-    logging.debug(f"type of rhs({rhs}): {type(rhs)}")
-    logging.debug(f"lhs = {lhs}; rhs = {rhs}")
+    # 1 + dx^2y^2
+    rhs = context.Share(1) + await(context.Share(curve.d) * await(x_sq * y_sq))
 
     return await lhs.open() == await rhs.open()
 

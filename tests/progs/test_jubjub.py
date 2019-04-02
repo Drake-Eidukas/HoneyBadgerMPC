@@ -31,13 +31,14 @@ def test_basic_point_functionality():
 
 @mark.asyncio
 async def test_point_on_curve(test_preprocessing):
-    curve = Jubjub()
-    n, t = 3, 1
+    n, t = 4, 1
     test_preprocessing.generate("rands", n, t)
     test_preprocessing.generate("triples", n, t)
     test_preprocessing.generate("double_shares", n, t)
 
     async def _prog(context):
+        curve = Jubjub(field=context.field)
+
         xs = context.Share(0)
         ys = context.Share(1)
 
