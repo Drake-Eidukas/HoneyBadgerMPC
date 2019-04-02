@@ -1,4 +1,5 @@
 from honeybadgermpc.field import GF
+from honeybadgermpc.mixins import DoubleSharing
 import asyncio
 
 Field = GF(0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001)
@@ -44,6 +45,7 @@ class Jubjub(object):
 class Point(object):
     """
     Represents a point with optimized operations over Edwards curves
+    This is the 'local' version of this class, that doesn't deal with shares
     """
 
     def __init__(self, x, y, curve=Jubjub()):
@@ -156,18 +158,36 @@ class Ideal(Point):
         return type(other) is Ideal
 
 
-async def point_shares_on_curve(context, curve: Jubjub, xs, ys):
-    assert len(xs) == len(ys)
+async def point_shares_on_curve(context, curve, xs, ys):
+    import logging
+    assert type(xs) == context.Share
+    assert type(ys) == context.Share
     if not isinstance(curve, Jubjub):
         raise Exception("The curve %s is not a Jubjub curve!" % curve)
 
-    lhs = await(await(xs * xs) + await(ys * ys)).open() * curve.a
-    rhs = await(await(xs * xs * ys * ys)).open() * curve.d + 1
+    a_s, d_s = context.Share(curve.a), context.Share(curve.d)
+    one = context.Share(1)
 
-    return lhs == rhs
+    x_sq = await(xs * xs)
+    y_sq = await(ys * ys)
+
+    logging.debug(f"type of x_sq({x_sq}): {type(x_sq)}")
+    logging.debug(f"type of sum({x_sq + y_sq}): {type(x_sq + y_sq)}")
+    x_y_sq_sum = x_sq + y_sq
+    lhs = await(x_y_sq_sum * a_s)
+
+    logging.debug(f"type of lhs({lhs}): {type(lhs)}")
+
+    x_sq_y_sq = await (x_sq * y_sq)
+    rhs = await(await(x_sq_y_sq * d_s) + one)
+    logging.debug(f"type of x_sq_y_sq({x_sq_y_sq}): {type(x_sq_y_sq)}")
+    logging.debug(f"type of rhs({rhs}): {type(rhs)}")
+    logging.debug(f"lhs = {lhs}; rhs = {rhs}")
+
+    return await lhs.open() == await rhs.open()
 
 if __name__ == '__main__':
-    """ 
+    """
     main method for quick testing
     """
     n, t = 9, 2
