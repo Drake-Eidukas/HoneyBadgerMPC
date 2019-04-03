@@ -196,7 +196,7 @@ class SharedPoint(object):
         return str(self)
 
     async def neg(self):
-        return await SharedPoint.create(self.context, await (-1 * self.xs), self.ys, self.curve)
+        return await(SharedPoint.create(self.context, await (-1 * self.xs), self.ys, self.curve))
 
     async def add(self, other: 'SharedPoint') -> 'SharedPoint':
         if self.curve != other.curve:
@@ -217,8 +217,8 @@ class SharedPoint(object):
         d_prod = await(await(self.context.Share(self.curve.d) * x_prod) * y_prod)
 
         # TODO: mpc division
-        x3 = (await(x1 * y2) + await(y1 * x2)) / (one + d_prod)
-        y3 = (y_prod + x_prod) / (one - d_prod)
+        x3 = await((await(x1 * y2) + await(y1 * x2)) / (one + d_prod))
+        y3 = await((y_prod + x_prod) / (one - d_prod))
 
         return await(SharedPoint.create(self.context, x3, y3, self.curve))
 
@@ -245,7 +245,7 @@ class SharedPoint(object):
             if n & i == i:
                 R = await(R.add(Q))
 
-            i = i << 1
+            i <<= 1
 
         return R
 
