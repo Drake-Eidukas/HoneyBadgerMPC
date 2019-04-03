@@ -2,7 +2,7 @@ import asyncio
 from pytest import mark
 from honeybadgermpc.mpc import TaskProgramRunner
 from honeybadgermpc.mixins import MixinOpName, DoubleSharing, BeaverTriple
-from progs.jubjub import point_shares_on_curve, Jubjub, Point, Ideal
+from progs.jubjub import Jubjub, Point, Ideal
 import logging
 
 
@@ -11,7 +11,7 @@ def test_basic_point_functionality():
     curve = p1.curve
     ideal = Ideal(curve)
 
-    assert p1.curve.testPoint(p1.x, p1.y)
+    assert curve.test_point(p1)
     assert 2 * p1 == p1
     assert p1.double() == 2 * p1
 
@@ -35,14 +35,11 @@ async def test_point_on_curve(test_preprocessing):
     test_preprocessing.generate("rands", n, t)
     test_preprocessing.generate("triples", n, t)
     test_preprocessing.generate("double_shares", n, t)
+    curve = Jubjub()
 
     async def _prog(context):
-        curve = Jubjub(field=context.field)
-
-        xs = context.Share(0)
-        ys = context.Share(1)
-
-        assert await point_shares_on_curve(context, curve, xs, ys)
+        assert await curve.test_point_shares(context, context.Share(0), context.Share(1))
+        assert not await curve.test_point_shares(context, context.Share(0), context.Share(2))
 
     program_runner = TaskProgramRunner(
         n, t, {MixinOpName.MultiplyShare: BeaverTriple.multiply_shares})

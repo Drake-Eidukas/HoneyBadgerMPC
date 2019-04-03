@@ -1,9 +1,10 @@
 from honeybadgermpc.field import GF, GFElement
 from honeybadgermpc.mixins import DoubleSharing
 from honeybadgermpc.elliptic_curve import Subgroup
+from honeybadgermpc.mpc import Mpc
 import asyncio
 
-Field = GF(Subgroup.BLS12_381)
+Field = GF.get(Subgroup.BLS12_381)
 
 
 class Jubjub(object):
@@ -11,30 +12,21 @@ class Jubjub(object):
     JubJub is a twisted Edwards curve of the form -x^2 + y^2 = 1 + dx^2y^2
     """
 
-    def __init__(self, a: GFElement = None, d: GFElement = None, field=Field):
+    def __init__(self, a: GFElement = Field(-1), d: GFElement = -(Field(10240)/Field(10241))):
         # Workaround so that we can simply define field to define these in
         # terms of a given field
-        self.a = field(-1) if a is None else a
-        self.d = -(field(10240)/field(10241)) if d is None else d
+        self.a = a
+        self.d = d
 
         self.disc = self.a * self.d * (self.a - self.d) * (self.a - self.d) * \
             (self.a - self.d) * (self.a - self.d)
 
+        if not self.is_smooth():
+            raise Exception(f"The curve {self} is not smooth!")
+
         # TODO: document this term and j
         a_d_term = self.a * self.a + 14 * self.a * self.d + self.d * self.d
         self.j = 16 * a_d_term * a_d_term * a_d_term / self.disc
-
-        if not self.isSmooth():
-            raise Exception("The curve %s is not smooth!" % self)
-
-    def isSmooth(self) -> bool:
-        return self.disc != 0
-
-    def testPoint(self, x: int, y: int) -> bool:
-        """
-        Checks to make sure that the point sits on this curve
-        """
-        return self.a * x * x + y*y == 1 + self.d * x * x * y * y
 
     def __str__(self) -> str:
         return '%sx^2 + y^2 = 1 + %sx^2y^2' % (self.a, self.d)
@@ -45,6 +37,34 @@ class Jubjub(object):
     def __eq__(self, other) -> bool:
         return (self.a, self.d) == (other.a, other.d)
 
+    def is_smooth(self) -> bool:
+        return self.disc != 0
+
+    async def test_point_shares(self, context: Mpc, xs, ys):
+        """
+        Checks whether or not the given shares for x and y correspond to a 
+        point that sits on this curve
+        """
+        assert isinstance(xs, context.Share)
+        assert isinstance(ys, context.Share)
+
+        x_sq = await(xs * xs)
+        y_sq = await(ys * ys)
+
+        # ax^2 + y^2
+        lhs = await(context.Share(self.a) * x_sq) + y_sq
+
+        # 1 + dx^2y^2
+        rhs = context.Share(1) + await(context.Share(self.d) * await(x_sq * y_sq))
+
+        return await lhs.open() == await rhs.open()
+
+    def test_point(self, p: 'Point') -> bool:
+        """
+        Checks whether or not the given x and y coordinates sit on the curve
+        """
+        return self.a * p.x * p.x + p.y * p.y == 1 + self.d * p.x * p.x * p.y * p.y
+
 
 class Point(object):
     """
@@ -52,13 +72,18 @@ class Point(object):
     This is the 'local' version of this class, that doesn't deal with shares
     """
 
-    def __init__(self, x, y, curve=Jubjub()):
+    def __init__(self, x: int, y: int, curve: Jubjub = Jubjub()):
+        if not isinstance(curve, Jubjub):
+            raise Exception(
+                f"Could not create Point-- given curve not of type Jubjub ({type(curve)})")
+
         self.curve = curve  # the curve containing this point
         self.x = x
         self.y = y
 
-        if not self.curve.testPoint(x, y):
-            raise Exception("The point %s is not on the given curve %s!" % (self, curve))
+        if not self.curve.test_point(self):
+            raise Exception(
+                f"Could not create Point({self})-- not on the given curve {curve}!")
 
     def __str__(self):
         return "(%r, %r)" % (self.x, self.y)
@@ -92,8 +117,7 @@ class Point(object):
 
         if n < 0:
             return -self * -n
-
-        if n == 0:
+        elif n == 0:
             return Ideal(self.curve)
 
         Q = self
@@ -116,13 +140,13 @@ class Point(object):
     def __list__(self):
         return [self.x, self.y]
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: object) -> bool:
         if type(other) is Ideal:
             return False
 
         return (self.x, self.y) == (other.x, other.y)
 
-    def __ne__(self, other) -> bool:
+    def __ne__(self, other: object) -> bool:
         return not self == other
 
     def __getitem__(self, index: int) -> int:
@@ -158,27 +182,9 @@ class Ideal(Point):
         else:
             return self
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: object) -> bool:
         return type(other) is Ideal
 
-
-async def point_shares_on_curve(context, curve, xs, ys):
-    import logging
-    assert type(xs) == context.Share
-    assert type(ys) == context.Share
-    if not isinstance(curve, Jubjub):
-        raise Exception("The curve %s is not a Jubjub curve!" % curve)
-
-    x_sq = await(xs * xs)
-    y_sq = await(ys * ys)
-
-    # ax^2 + y^2
-    lhs = await(context.Share(curve.a) * x_sq) + y_sq
-
-    # 1 + dx^2y^2
-    rhs = context.Share(1) + await(context.Share(curve.d) * await(x_sq * y_sq))
-
-    return await lhs.open() == await rhs.open()
 
 if __name__ == '__main__':
     """
