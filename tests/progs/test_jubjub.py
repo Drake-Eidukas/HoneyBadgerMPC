@@ -1,8 +1,8 @@
 import asyncio
-from pytest import mark
+from pytest import mark, raises
 from honeybadgermpc.mpc import TaskProgramRunner
 from honeybadgermpc.mixins import MixinOpName, DoubleSharing, BeaverTriple
-from progs.jubjub import Jubjub, Point, Ideal
+from progs.jubjub import Jubjub, SharedPoint, Point, Ideal
 import logging
 
 
@@ -11,7 +11,7 @@ def test_basic_point_functionality():
     curve = p1.curve
     ideal = Ideal(curve)
 
-    assert curve.test_point(p1)
+    assert curve.contains_point(p1)
     assert 2 * p1 == p1
     assert p1.double() == 2 * p1
 
@@ -30,7 +30,7 @@ def test_basic_point_functionality():
 
 
 @mark.asyncio
-async def test_point_on_curve(test_preprocessing):
+async def test_contains_shared_point(test_preprocessing):
     n, t = 4, 1
     test_preprocessing.generate("rands", n, t)
     test_preprocessing.generate("triples", n, t)
@@ -38,8 +38,12 @@ async def test_point_on_curve(test_preprocessing):
     curve = Jubjub()
 
     async def _prog(context):
-        assert await curve.test_point_shares(context, context.Share(0), context.Share(1))
-        assert not await curve.test_point_shares(context, context.Share(0), context.Share(2))
+        p1 = await(SharedPoint.create(context, context.Share(0), context.Share(1)))
+        assert await(curve.contains_shared_point(context, p1))
+
+        with raises(Exception) as e_info:
+            await(SharedPoint.create(context, context.Share(0), context.Share(2)))
+        assert ('Could not initialize Point' in str(e_info.value))
 
     program_runner = TaskProgramRunner(
         n, t, {MixinOpName.MultiplyShare: BeaverTriple.multiply_shares})

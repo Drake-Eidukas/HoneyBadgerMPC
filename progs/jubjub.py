@@ -40,16 +40,15 @@ class Jubjub(object):
     def is_smooth(self) -> bool:
         return self.disc != 0
 
-    async def test_point_shares(self, context: Mpc, xs, ys):
+    async def contains_shared_point(self, context: Mpc, p: 'SharedPoint') -> bool:
         """
-        Checks whether or not the given shares for x and y correspond to a 
+        Checks whether or not the given shares for x and y correspond to a
         point that sits on this curve
         """
-        assert isinstance(xs, context.Share)
-        assert isinstance(ys, context.Share)
+        assert isinstance(p, SharedPoint)
 
-        x_sq = await(xs * xs)
-        y_sq = await(ys * ys)
+        x_sq = await(p.xs * p.xs)
+        y_sq = await(p.ys * p.ys)
 
         # ax^2 + y^2
         lhs = await(context.Share(self.a) * x_sq) + y_sq
@@ -59,11 +58,108 @@ class Jubjub(object):
 
         return await lhs.open() == await rhs.open()
 
-    def test_point(self, p: 'Point') -> bool:
+    def contains_point(self, p: 'Point') -> bool:
         """
         Checks whether or not the given x and y coordinates sit on the curve
         """
         return self.a * p.x * p.x + p.y * p.y == 1 + self.d * p.x * p.x * p.y * p.y
+
+
+class SharedPoint(object):
+    """
+    Represents a point with optimized operatons over Edward's curves.
+    This is the 'shared' version of this class, which does deal with shares
+    """
+
+    def __init__(self, context: Mpc, xs, ys, curve: Jubjub = Jubjub()):
+        if not isinstance(curve, Jubjub):
+            raise Exception(
+                f"Could not create Point-- given curve not of type Jubjub ({type(curve)})")
+
+        self.context = context
+        self.curve = curve
+        self.xs = xs
+        self.ys = ys
+
+    async def _init(self):
+        if not await(self.curve.contains_shared_point(self.context, self)):
+            raise Exception(
+                f"Could not initialize Point {self}-- does not sit on given curve {self.curve}")
+
+    @staticmethod
+    async def create(context: Mpc, xs, ys, curve=Jubjub()):
+        point = SharedPoint(context, xs, ys, curve)
+        await(point._init())
+        return point
+
+    def __str__(self) -> str:
+        return f"({self.xs}, {self.ys})"
+
+    def __repr__(self) -> str:
+        return str(self)
+
+    async def neg(self):
+        return await SharedPoint.create(self.context, await (-1 * self.xs), self.ys, self.curve)
+
+    async def add(self, other: 'SharedPoint') -> 'SharedPoint':
+        if self.curve != other.curve:
+            raise Exception("Can't add points on different curves!")
+        elif self.context != other.context:
+            raise Exception("Can't add points from different contexts!")
+        elif isinstance(other, Ideal):
+            return self
+        elif not isinstance(other, SharedPoint):
+            raise Exception(
+                f"Could not add other point-- not an instance of SharedPoint")
+
+        x1, y1, x2, y2 = self.xs, self.ys, other.xs, other.ys
+
+        one = self.context.Share(1)
+        y_prod = await(y1 * y2)
+        x_prod = await(x1 * x2)
+        d_prod = await(await(self.context.Share(self.curve.d) * x_prod) * y_prod)
+
+        # TODO: mpc division
+        x3 = (await(x1 * y2) + await(y1 * x2)) / (one + d_prod)
+        y3 = (y_prod + x_prod) / (one - d_prod)
+
+        return await(SharedPoint.create(self.context, x3, y3, self.curve))
+
+    async def sub(self, other: 'SharedPoint') -> 'SharedPoint':
+        return self.add(await(other.mul(-1)))
+
+    async def mul(self, n: int) -> 'SharedPoint':
+        if not isinstance(n, int):
+            raise Exception("Can't scale a SharedPoint by something which isn't an int!")
+
+        if n < 0:
+            return await(await(self.mul(-1)).mul(-n))
+        elif n == 0:
+            # TODO: consider returning some SharedIdeal class
+            return Ideal(self.curve)
+
+        Q = self
+        R = self if n & 1 == 1 else Ideal(self.curve)
+
+        i = 2
+        while i <= n:
+            Q = await(Q.double())
+
+            if n & i == i:
+                R = await(R.add(Q))
+
+            i = i << 1
+
+        return R
+
+    async def double(self) -> 'SharedPoint':
+        return await(self.add(self))
+
+    async def eq(self, other: 'SharedPoint') -> bool:
+        if isinstance(other, Ideal):
+            return False
+
+        return (self.xs.open(), self.ys.open()) == (other.xs.open(), other.ys.open())
 
 
 class Point(object):
@@ -81,7 +177,7 @@ class Point(object):
         self.x = x
         self.y = y
 
-        if not self.curve.test_point(self):
+        if not self.curve.contains_point(self):
             raise Exception(
                 f"Could not create Point({self})-- not on the given curve {curve}!")
 
