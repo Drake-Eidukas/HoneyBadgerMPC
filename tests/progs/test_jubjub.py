@@ -2,7 +2,7 @@ import asyncio
 from pytest import mark, raises
 from honeybadgermpc.mpc import TaskProgramRunner
 from honeybadgermpc.mixins import MixinOpName, DoubleSharing, BeaverTriple
-from progs.jubjub import Jubjub, SharedPoint, Point, Ideal
+from progs.jubjub import Jubjub, SharedPoint, Point, Ideal, Field
 import logging
 
 
@@ -29,23 +29,62 @@ def test_basic_point_functionality():
     assert p3[0] == 10
 
 
+async def shared_point_equals(p1: SharedPoint, p2: SharedPoint) -> bool:
+    if (p1.curve != p2.curve):
+        return False
+    elif (p1.context != p2.context):
+        return False
+
+    return (await(p1.xs.open()), await(p1.ys.open())) == (await(p2.xs.open()), await(p2.ys.open()))
+
+
+async def run_test_prog(prog, n=4, t=1):
+    program_runner = TaskProgramRunner(
+        n, t, {MixinOpName.MultiplyShare: BeaverTriple.multiply_shares})
+    program_runner.add(prog)
+    await(program_runner.join())
+
+
+@mark.asyncio
+async def test_shared_point_eq():
+    async def _prog(context):
+        p1 = await(SharedPoint.create(context, context.Share(0), context.Share(1)))
+        p2 = await(SharedPoint.create(context, context.Share(5), context.Share(
+            6846412461894745224441235558443359243034138132682534265960483512729196124138)))
+        p3 = await(SharedPoint.create(context, context.Share(
+            0), context.Share(1), Jubjub(Field(-2))))
+
+        assert await(shared_point_equals(p1, p1))
+        assert not await(shared_point_equals(p1, p2))
+        assert not await(shared_point_equals(p1, p3))
+
+    await run_test_prog(_prog)
+
+
 @mark.asyncio
 async def test_contains_shared_point(test_preprocessing):
     n, t = 4, 1
     test_preprocessing.generate("rands", n, t)
     test_preprocessing.generate("triples", n, t)
     test_preprocessing.generate("double_shares", n, t)
-    curve = Jubjub()
 
     async def _prog(context):
         p1 = await(SharedPoint.create(context, context.Share(0), context.Share(1)))
-        assert await(curve.contains_shared_point(context, p1))
+        assert await(p1.curve.contains_shared_point(context, p1))
 
         with raises(Exception) as e_info:
             await(SharedPoint.create(context, context.Share(0), context.Share(2)))
         assert ('Could not initialize Point' in str(e_info.value))
 
-    program_runner = TaskProgramRunner(
-        n, t, {MixinOpName.MultiplyShare: BeaverTriple.multiply_shares})
-    program_runner.add(_prog)
-    await program_runner.join()
+    await run_test_prog(_prog, n, t)
+
+
+@mark.asyncio
+async def test_shared_point_creation_from_point():
+    async def _prog(context):
+        p1 = Point(0, 1)
+        p1s = await(SharedPoint.from_point(context, p1))
+        p2 = await(SharedPoint.create(context, context.Share(0), context.Share(1)))
+        assert await(shared_point_equals(p1s, p2))
+
+    await run_test_prog(_prog)
