@@ -239,6 +239,30 @@ def share_in_context(context):
 
         def __str__(self): return '{%d}' % (self.v)
 
+        def __invert__(self):
+            if MixinOpName.InvertShare not in context.config:
+                raise NotImplementedError
+            if MixinOpName.MultiplyShare not in context.config:
+                raise NotImplementedError
+
+            return context.config[MixinOpName.InvertShare](context, self)
+
+        def __div__(self, other):
+            if MixinOpName.InvertShare not in context.config:
+                raise NotImplementedError
+            if MixinOpName.MultiplyShare not in context.config:
+                raise NotImplementedError
+
+            async def divide(curr, other):
+                other_inverted = await(
+                    context.config[MixinOpName.InvertShare](context, other))
+
+                return await(context.config[MixinOpName.MultiplyShare](context, curr, other_inverted))
+
+            return divide(self, other)
+
+        __truediv__ = __floordiv__ = __div__
+
     def _binop_share(fut, other, op):
         assert type(other) in [ShareFuture, GFElementFuture, Share, GFElement]
         res = ShareFuture()
@@ -317,6 +341,30 @@ def share_in_context(context):
                     context, self, other)
             else:
                 raise NotImplementedError
+
+        def __invert__(self):
+            if MixinOpName.InvertShareArray not in context.config:
+                raise NotImplementedError
+            elif MixinOpName.MultiplyShareArray not in context.config:
+                raise NotImplementedError
+
+            return context.config[MixinOpName.InvertShareArray](context, self)
+
+        def __div__(self, other):
+            if MixinOpName.InvertShareArray not in context.config:
+                raise NotImplementedError
+            elif MixinOpName.MultiplyShareArray not in context.config:
+                raise NotImplementedError
+
+            async def divide(curr, other):
+                other_inverted = await(
+                    context.config[MixinOpName.InvertShareArray](context, other))
+
+                return await(context.config[MixinOpName.MultiplyShareArray](context, curr, other_inverted))
+
+            return divide(self, other)
+
+        __truediv__ = __floordiv__ = __div__
 
     return Share, ShareArray
 
