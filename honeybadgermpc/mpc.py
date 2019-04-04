@@ -257,7 +257,8 @@ def share_in_context(context):
                 other_inverted = await(
                     context.config[MixinOpName.InvertShare](context, other))
 
-                return await(context.config[MixinOpName.MultiplyShare](context, curr, other_inverted))
+                return await(context.config[MixinOpName.MultiplyShare](
+                    context, curr, other_inverted))
 
             return divide(self, other)
 
@@ -360,7 +361,8 @@ def share_in_context(context):
                 other_inverted = await(
                     context.config[MixinOpName.InvertShareArray](context, other))
 
-                return await(context.config[MixinOpName.MultiplyShareArray](context, curr, other_inverted))
+                return await(context.config[MixinOpName.MultiplyShareArray](
+                    context, curr, other_inverted))
 
             return divide(self, other)
 
