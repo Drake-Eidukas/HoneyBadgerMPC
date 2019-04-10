@@ -53,9 +53,9 @@ class Inverter(MixinBase):
         assert isinstance(x, context.Share)
 
         r = MixinBase.pp_elements.get_rand(context)
-        sig = await(await(x * r)).open()
+        sig = await context.Share(x * r).open()
 
-        return await(r * context.Share(1/sig))
+        return await context.Share(r * context.Share(1/sig))
 
     @staticmethod
     async def invert_share_array(context, x):
@@ -65,10 +65,10 @@ class Inverter(MixinBase):
 
         rs = context.ShareArray([MixinBase.pp_elements.get_rand(context)
                                  for _ in range(len(x._shares))])
-        sigs = await(await(x * rs)).open()
+        sigs = await context.ShareArray(x * rs).open()
         sig_invs = context.ShareArray([1/sig for sig in sigs])
 
-        return await(rs * sig_invs)
+        return await context.ShareArray(rs * sig_invs)
 
 
 class DoubleSharing(MixinBase):
@@ -79,7 +79,8 @@ class DoubleSharing(MixinBase):
 
         r_t, r_2t = MixinBase.pp_elements.get_double_share(context)
         diff = await (x_2t - r_2t).open()
-        return context.Share(await (r_t + diff).open())
+
+        return r_t + diff
 
     @staticmethod
     async def reduce_degree_share_array(context, x_2t):
@@ -95,7 +96,9 @@ class DoubleSharing(MixinBase):
         q_t = context.ShareArray(r_t)
         q_2t = context.ShareArray(r_2t, 2*context.t)
         diff = await (x_2t - q_2t).open()
-        return context.ShareArray(await (q_t + diff).open())
+
+        return q_t + diff
+        # return context.ShareArray(await (q_t + diff).open())
 
     @staticmethod
     async def multiply_shares(context, x, y):

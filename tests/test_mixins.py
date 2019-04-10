@@ -56,7 +56,7 @@ async def test_multiplication_using_double_sharing(galois_field, test_preprocess
         sh_b = test_preprocessing.elements.get_rand(context)
         ab_expected = await sh_a.open() * await sh_b.open()
 
-        ab_actual = await(await (sh_a * sh_b)).open()
+        ab_actual = await context.Share(sh_a * sh_b).open()
         assert ab_expected == ab_actual
 
     program_runner = TaskProgramRunner(

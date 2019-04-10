@@ -131,7 +131,9 @@ class Mpc(object):
 
             # Sort into single or batch
             if tag == 'S':
-                assert type(share) is GFElement, "?"
+                assert isinstance(share, GFElement) or isinstance(
+                    share, asyncio.Future), '?'
+                # assert type(share) is GFElement, "?"
                 buf = self._share_buffers[j]
 
                 # Assert there is not an R1 or R2 value either
@@ -142,6 +144,11 @@ class Mpc(object):
                     logging.info(f'redundant share: {j} {(tag, shareid)}')
                 assert not buf[shareid].done(
                 ), "Received a redundant share: %o" % shareid
+
+                # if isinstance(share, asyncio.Future):
+                #     def cb(f): buf[shareid].set_result(f.result())
+                #     share.add_done_callback(cb)
+                # else:
                 buf[shareid].set_result(share)
 
             elif tag in ('R1', 'R2'):
@@ -192,7 +199,10 @@ def share_in_context(context):
             # v is the local value of the share
             if type(v) is int:
                 v = context.field(v)
-            assert type(v) is GFElement
+            # if not isinstance(v, GFElement):
+            #     import pdb
+            #     pdb.set_trace()
+            assert isinstance(v, GFElement) or isinstance(v, GFElementFuture)
             self.v = v
             self.t = context.t if t is None else t
 
@@ -232,27 +242,40 @@ def share_in_context(context):
         def __mul__(self, other):
             assert type(other) is Share
             assert self.t == other.t
-            if MixinOpName.MultiplyShare in context.config:
-                return context.config[MixinOpName.MultiplyShare](context, self, other)
-            else:
+            if MixinOpName.MultiplyShare not in context.config:
                 raise NotImplementedError
+
+            res = GFElementFuture()
+            def cb(f): return res.set_result(f.result())
+
+            multiplier = context.config[MixinOpName.MultiplyShare]
+            product = asyncio.ensure_future(multiplier(context, self, other))
+            product.add_done_callback(cb)
+
+            return res
 
         def __str__(self): return '{%d}' % (self.v)
 
         def __div__(self, other):
             if MixinOpName.InvertShare not in context.config:
                 raise NotImplementedError
-            if MixinOpName.MultiplyShare not in context.config:
-                raise NotImplementedError
 
-            async def divide(curr, other):
-                other_inverted = await(
-                    context.config[MixinOpName.InvertShare](context, other))
+            res = ShareFuture()
+            def cb(f): return res.set_result(f.result())
 
-                multiplier = context.config[MixinOpName.MultiplyShare]
-                return await(multiplier(context, curr, other_inverted))
+            invert = context.config[MixinOpName.InvertShare]
+            other_inverted = asyncio.ensure_future(invert(context, other))
+            other_inverted.add_done_callback(cb)
 
-            return divide(self, other)
+            return self * other_inverted
+
+            # async def divide(curr, other):
+            #     other_inverted = await(
+            #         context.config[MixinOpName.InvertShare](context, other))
+
+            #     return ShareFuture(await(curr * other_inverted))
+
+            # return divide(self, other)
 
         __truediv__ = __floordiv__ = __div__
 
@@ -276,6 +299,11 @@ def share_in_context(context):
 
         def __mul__(self, other): return _binop_share(
             self, other, lambda a, b: a * b)
+
+        def __div__(self, other): return _binop_share(
+            self, other, lambda a, b: a / b)
+
+        __truediv__ = __floordiv__ = __div__
 
         def open(self):
             res = GFElementFuture()
