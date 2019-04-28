@@ -1,5 +1,6 @@
 from honeybadgermpc.elliptic_curve import Jubjub, Point, Ideal
 from honeybadgermpc.mpc import Mpc
+import asyncio
 
 
 class SharedPoint(object):
@@ -32,7 +33,7 @@ class SharedPoint(object):
         # 1 + dx^2y^2
         rhs = self.context.field(1) + self.curve.d * x_sq * y_sq
 
-        return await (await lhs == await rhs).open()
+        return await (lhs == rhs).open()
 
     @staticmethod
     async def create(context: Mpc, xs, ys, curve=Jubjub()):
@@ -62,6 +63,49 @@ class SharedPoint(object):
 
     def __repr__(self) -> str:
         return str(self)
+
+    def open(self):
+        """Opens the shares of the shared point, and returns a future which evaluates
+        to a point
+        """
+
+        res = asyncio.Future()
+
+        def cb(f):
+            x, y = f.result()
+            res.set_result(Point(x, y, self.curve))
+
+        opened = asyncio.ensure_future(
+            asyncio.gather(self.xs.open(), self.ys.open()))
+        opened.add_done_callback(cb)
+
+        return res
+
+    def equals(self, other):
+        """Returns a future that evaluates to the result of the equality check
+        """
+        res = asyncio.Future()
+
+        if isinstance(other, (SharedIdeal)):
+            res.set_result(False)
+            return res
+        elif not isinstance(other, (SharedPoint)):
+            res.set_result(False)
+            return res
+        elif self.curve != other.curve:
+            res.set_result(False)
+            return res
+
+        def cb(f):
+            x_equal, y_equal = f.result()
+            res.set_result(bool(x_equal) and bool(y_equal))
+
+        openings = asyncio.ensure_future(
+            asyncio.gather((self.xs == other.xs).open(), (self.ys == other.ys).open()))
+
+        openings.add_done_callback(cb)
+
+        return res
 
     def neg(self):
         return SharedPoint(self.context,
@@ -205,6 +249,15 @@ class SharedIdeal(SharedPoint):
 
     async def double(self):
         return self
+
+    async def equals(self, other):
+        if not isinstance(other, SharedIdeal):
+            return False
+
+        return self.curve == other.curve
+
+    async def open(self):
+        return Ideal(self.curve)
 
 
 async def share_mul(context: Mpc, bs: list, p: Point) -> SharedPoint:

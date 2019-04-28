@@ -42,6 +42,10 @@ class Mpc(object):
         self.prog = prog
         self.prog_args = prog_args
 
+        # Counter that increments by 1 every time you access it
+        # This will be used to assign ids to shares.
+        self._share_id = 0
+
         # A task representing the opened values
         # { shareid => Future (field list(field)) }
         self._openings = {}
@@ -64,6 +68,10 @@ class Mpc(object):
         self.GFElementFuture = type(
             'GFElementFuture', (GFElementFuture,), {'context': self})
 
+    def get_share_id(self):
+        self._share_id += 1
+        return self._share_id
+
     def call_mixin(self, name, *args, **kwargs):
         if name not in self.config:
             raise NotImplementedError(f"Mixin {name} not present!")
@@ -78,7 +86,7 @@ class Mpc(object):
         """
 
         # Choose the shareid based on the order this is called
-        shareid = len(self._openings)
+        shareid = self.get_share_id()
         t = share.t if share.t is not None else self.t
 
         # Broadcast share
@@ -111,7 +119,7 @@ class Mpc(object):
 
     def open_share_array(self, sharearray):
         # Choose the shareid based on the order this is called
-        shareid = len(self._openings)
+        shareid = self.get_share_id()
 
         # Creates unique send function based on the share to open
         def _send(j, o):

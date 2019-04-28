@@ -324,3 +324,8 @@ class ShareFuture(ABC, asyncio.Future):
         return self.__binop_share(other, lambda a, b: b / a)
 
     __rtruediv__ = __rfloordiv__ = __rdiv__
+
+    def __eq__(self, other):
+        return self.__binop_share(other, lambda a, b: a == b)
+
+    __hash__ = asyncio.Future.__hash__

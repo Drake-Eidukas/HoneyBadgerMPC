@@ -1,4 +1,5 @@
 import asyncio
+from copy import deepcopy
 from pytest import mark, raises
 from honeybadgermpc.elliptic_curve import Ideal, Point, Jubjub
 from honeybadgermpc.progs.jubjub import SharedPoint, SharedIdeal, share_mul
@@ -43,18 +44,13 @@ async def run_test_program(prog, test_runner, n=n, t=t, k=10000,
     return await test_runner(prog, n, t, STANDARD_PREPROCESSING, k, mixins)
 
 
-async def shared_point_equals(a, b):
-    if a.curve != b.curve:
-        return False
-    elif type(a) != type(b):
-        return False
-    elif isinstance(a, (Ideal, SharedIdeal)):
-        return True
-
-    a_x, a_y, b_x, b_y = await asyncio.gather(
-        a.xs.open(), a.ys.open(), b.xs.open(), b.ys.open())
-
-    return (a_x, a_y) == (b_x, b_y)
+async def shared_point_equals(a_, b_):
+    """Test utility function-- opens the two shared points, and
+    then compares them that way. This should be faster than calling 
+    the secret shared equality function
+    """
+    a, b = await asyncio.gather(a_.open(), b_.open())
+    return a == b
 
 
 def test_basic_point_functionality():
@@ -84,12 +80,19 @@ async def test_shared_point_equals(test_preprocessing, test_runner):
     async def _prog(context):
         p1 = SharedPoint.from_point(context, TEST_POINTS[0])
         p2 = SharedPoint.from_point(context, TEST_POINTS[1])
-        p3 = await SharedPoint.create(context, context.Share(
-            0), context.Share(1), Jubjub(Jubjub.Field(-2)))
 
-        assert await shared_point_equals(p1, p1)
-        assert not await shared_point_equals(p1, p2)
-        assert not await shared_point_equals(p1, p3)
+        # Different curve
+        p3 = deepcopy(p1)
+        p3.curve = Jubjub(Jubjub.Field(-2))
+
+        p4 = SharedIdeal(TEST_CURVE)
+
+        eqs = await asyncio.gather(*[shared_point_equals(p1, p1),
+                                     shared_point_equals(p1, p2),
+                                     shared_point_equals(p1, p3),
+                                     shared_point_equals(p1, p4)])
+
+        assert [True, False, False, False] == eqs
 
     await run_test_program(_prog, test_runner)
 
@@ -177,7 +180,7 @@ async def test_shared_point_sub(test_preprocessing, test_runner):
         actual, result = await asyncio.gather(
             asyncio.gather(*[p.sub(p) for p in shared_points]),
             asyncio.gather(*[p1.add(p2)
-                           for p1, p2 in zip(shared_points, actual_negated)]))
+                             for p1, p2 in zip(shared_points, actual_negated)]))
 
         assert all(await asyncio.gather(
             *[shared_point_equals(a, r) for a, r in zip(actual, result)]))
