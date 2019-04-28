@@ -19,35 +19,6 @@ class SharedPoint(object):
         self.xs = xs
         self.ys = ys
 
-    async def _on_curve(self) -> bool:
-        """
-        Checks whether or not the given shares for x and y correspond to a
-        point that sits on the current curve
-        """
-        x_sq = self.xs * self.xs
-        y_sq = self.ys * self.ys
-
-        # ax^2 + y^2
-        lhs = self.curve.a * x_sq + y_sq
-
-        # 1 + dx^2y^2
-        rhs = self.context.field(1) + self.curve.d * x_sq * y_sq
-
-        return await (lhs == rhs).open()
-
-    @staticmethod
-    async def create(context: Mpc, xs, ys, curve=Jubjub()):
-        """ Given a context, secret shared coordinates and a curve,
-            creates the given point
-        """
-        point = SharedPoint(context, xs, ys, curve)
-        if not await point._on_curve():
-            raise ValueError(
-                f"Could not initialize Point {point}-- \
-                does not sit on given curve {point.curve}")
-
-        return point
-
     @staticmethod
     def from_point(context: Mpc, p: Point) -> 'SharedPoint':
         """ Given a local point and a context, created a shared point
@@ -64,48 +35,28 @@ class SharedPoint(object):
     def __repr__(self) -> str:
         return str(self)
 
-    def open(self):
+    async def open(self):
         """Opens the shares of the shared point, and returns a future which evaluates
         to a point
         """
 
-        res = asyncio.Future()
+        x, y = await asyncio.gather(self.xs.open(), self.ys.open())
+        return Point(x, y, self.curve)
 
-        def cb(f):
-            x, y = f.result()
-            res.set_result(Point(x, y, self.curve))
-
-        opened = asyncio.ensure_future(
-            asyncio.gather(self.xs.open(), self.ys.open()))
-        opened.add_done_callback(cb)
-
-        return res
-
-    def equals(self, other):
+    async def equals(self, other):
         """Returns a future that evaluates to the result of the equality check
         """
-        res = asyncio.Future()
 
         if isinstance(other, (SharedIdeal)):
-            res.set_result(False)
-            return res
+            return False
         elif not isinstance(other, (SharedPoint)):
-            res.set_result(False)
-            return res
+            return False
         elif self.curve != other.curve:
-            res.set_result(False)
-            return res
+            return False
 
-        def cb(f):
-            x_equal, y_equal = f.result()
-            res.set_result(bool(x_equal) and bool(y_equal))
+        x_equal, y_equal = await asyncio.gather((self.xs == other.xs).open(), (self.ys == other.ys).open())
 
-        openings = asyncio.ensure_future(
-            asyncio.gather((self.xs == other.xs).open(), (self.ys == other.ys).open()))
-
-        openings.add_done_callback(cb)
-
-        return res
+        return bool(x_equal) and bool(y_equal)
 
     def neg(self):
         return SharedPoint(self.context,
@@ -113,7 +64,7 @@ class SharedPoint(object):
                            self.ys,
                            self.curve)
 
-    async def add(self, other: 'SharedPoint') -> 'SharedPoint':
+    def add(self, other: 'SharedPoint') -> 'SharedPoint':
         if isinstance(other, SharedIdeal):
             return self
         elif not isinstance(other, SharedPoint):
@@ -140,17 +91,17 @@ class SharedPoint(object):
 
         return SharedPoint(self.context, x3, y3, self.curve)
 
-    async def sub(self, other: 'SharedPoint') -> 'SharedPoint':
-        return await self.add(other.neg())
+    def sub(self, other: 'SharedPoint') -> 'SharedPoint':
+        return self.add(other.neg())
 
-    async def mul(self, n: int) -> 'SharedPoint':
+    def mul(self, n: int) -> 'SharedPoint':
         # Using the Double-and-Add algorithm
         # https://en.wikipedia.org/wiki/Elliptic_curve_point_multiplication
         if not isinstance(n, int):
             raise Exception("Can't scale a SharedPoint by something which isn't an int!")
 
         if n < 0:
-            return await self.neg().mul(-n)
+            return self.neg().mul(-n)
         elif n == 0:
             return SharedIdeal(self.curve)
 
@@ -160,22 +111,22 @@ class SharedPoint(object):
         i = 1
         while i <= n:
             if n & i == i:
-                product = await product.add(current)
+                product = product.add(current)
 
-            current = await current.double()
+            current = current.double()
             i <<= 1
 
         return product
 
-    async def montgomery_mul(self, n: int) -> 'SharedPoint':
+    def montgomery_mul(self, n: int) -> 'SharedPoint':
         # Using the Montgomery Ladder algorithm
         # https://en.wikipedia.org/wiki/Elliptic_curve_point_multiplication
         if not isinstance(n, int):
             raise Exception("Can't scale a SharedPoint by something which isn't an int!")
 
         if n < 0:
-            negated = await self.neg()
-            return await negated.mul(-n)
+            negated = self.neg()
+            return negated.mul(-n)
         elif n == 0:
             return SharedIdeal(self.curve)
 
@@ -185,17 +136,17 @@ class SharedPoint(object):
         i = 1 << n.bit_length()
         while i > 0:
             if n & i == i:
-                product = await product.add(current)
-                current = await current.double()
+                product = product.add(current)
+                current = current.double()
             else:
-                current = await product.add(current)
-                product = await product.double()
+                current = product.add(current)
+                product = product.double()
 
             i >>= 1
 
         return product
 
-    async def double(self) -> 'SharedPoint':
+    def double(self) -> 'SharedPoint':
         # Uses the optimized implementation from wikipedia
         x_, y_ = self.xs, self.ys
         x_sq, y_sq = (x_*x_), (y_*y_)
@@ -294,6 +245,6 @@ async def share_mul(context: Mpc, bs: list, p: Point) -> SharedPoint:
 
     accum = terms[0]
     for i in terms[1:]:
-        accum = await accum.add(i)
+        accum = accum.add(i)
 
     return accum
