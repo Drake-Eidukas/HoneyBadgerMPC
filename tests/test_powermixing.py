@@ -3,7 +3,7 @@ from pytest import mark
 
 @mark.asyncio
 async def test_phase1(test_preprocessing, galois_field):
-    from honeybadgermpc.mpc import TaskProgramRunner
+    from honeybadgermpc.program_runner import TaskProgramRunner
     from honeybadgermpc.preprocessing import PreProcessingConstants
     import apps.shuffle.powermixing as pm
     from uuid import uuid4
@@ -70,8 +70,7 @@ async def test_phase2(galois_field):
 async def test_asynchronous_mixing(test_preprocessing):
     import asyncio
     import apps.shuffle.powermixing as pm
-    from honeybadgermpc.mpc import TaskProgramRunner
-
+    from honeybadgermpc.program_runner import TaskProgramRunner
     n, t, k = 3, 1, 4
     test_preprocessing.generate("powers", n, t, k, k)
     test_preprocessing.generate("rands", n, t)

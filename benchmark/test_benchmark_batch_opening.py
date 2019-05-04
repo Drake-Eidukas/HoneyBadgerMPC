@@ -1,12 +1,12 @@
 from asyncio import get_event_loop
 from pytest import mark
-from honeybadgermpc.mpc import TaskProgramRunner
+from honeybadgermpc.program_runner import TaskProgramRunner
 
 
 @mark.parametrize("n,t,k", [
-        (4, 1, 2**i) for i in range(3, 11)]
-        + [(7, 2, 2**i) for i in range(3, 11)]
-    )
+    (4, 1, 2**i) for i in range(3, 11)]
+    + [(7, 2, 2**i) for i in range(3, 11)]
+)
 def test_benchmark_batch_opening(benchmark, test_preprocessing, n, t, k):
     num_rands = sum([2**i for i in range(3, 11)])*n
     test_preprocessing.generate("rands", n, t, k=num_rands)

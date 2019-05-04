@@ -4,7 +4,7 @@ from pytest import mark
 @mark.asyncio
 async def test_butterfly_network(test_preprocessing):
     import apps.shuffle.butterfly_network as butterfly
-    from honeybadgermpc.mpc import TaskProgramRunner
+    from honeybadgermpc.program_runner import TaskProgramRunner
     from honeybadgermpc.progs.mixins.share_arithmetic import BeaverMultiplyArrays
     from honeybadgermpc.progs.mixins.constants import MixinConstants
 

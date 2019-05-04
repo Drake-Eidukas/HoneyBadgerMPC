@@ -6,7 +6,7 @@ from honeybadgermpc.polynomial import polynomials_over
 from honeybadgermpc.poly_commit_const import gen_pc_const_crs
 from honeybadgermpc.betterpairing import G1, ZR
 from honeybadgermpc.hbavss import HbAvssLight, HbAvssBatch
-from honeybadgermpc.mpc import TaskProgramRunner
+from honeybadgermpc.program_runner import TaskProgramRunner
 from honeybadgermpc.symmetric_crypto import SymmetricCrypto
 import asyncio
 

@@ -1,5 +1,5 @@
 from pytest import mark
-from honeybadgermpc.mpc import TaskProgramRunner
+from honeybadgermpc.program_runner import TaskProgramRunner
 
 
 @mark.asyncio

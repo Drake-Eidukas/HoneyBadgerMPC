@@ -1,7 +1,7 @@
 from pytest import mark
 import asyncio
 from random import randint
-from honeybadgermpc.mpc import TaskProgramRunner
+from honeybadgermpc.program_runner import TaskProgramRunner
 from honeybadgermpc.elliptic_curve import Jubjub
 from honeybadgermpc.progs.mimc import mimc_mpc_batch
 from honeybadgermpc.progs.mixins.share_arithmetic import (

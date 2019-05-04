@@ -1,7 +1,7 @@
 import asyncio
 import uuid
 from time import time
-from honeybadgermpc.mpc import TaskProgramRunner
+from honeybadgermpc.program_runner import TaskProgramRunner
 from honeybadgermpc.field import GF
 from honeybadgermpc.elliptic_curve import Subgroup
 from honeybadgermpc.preprocessing import PreProcessedElements, PreProcessingConstants

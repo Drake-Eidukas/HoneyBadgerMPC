@@ -1,3 +1,4 @@
+from honeybadgermpc.program_runner import TaskProgramRunner
 from pytest import mark, raises
 from asyncio import gather
 from honeybadgermpc.progs.mixins.share_arithmetic import (
@@ -100,7 +101,6 @@ async def test_batch_double_sharing_multiply(galois_field,
 
 @mark.asyncio
 async def test_cant_multiply_shares_from_different_contexts(test_preprocessing):
-    from honeybadgermpc.mpc import TaskProgramRunner
     import asyncio
 
     n, t = 9, 2

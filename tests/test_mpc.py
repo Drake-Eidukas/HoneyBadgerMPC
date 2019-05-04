@@ -1,5 +1,5 @@
 from pytest import mark
-from honeybadgermpc.mpc import TaskProgramRunner
+from honeybadgermpc.program_runner import TaskProgramRunner
 from honeybadgermpc.progs.mixins.share_arithmetic import BeaverMultiply
 from honeybadgermpc.progs.mixins.constants import MixinConstants
 import asyncio

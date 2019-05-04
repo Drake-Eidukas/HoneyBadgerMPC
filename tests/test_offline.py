@@ -3,7 +3,7 @@ from pytest import mark
 from contextlib import ExitStack
 from random import randint
 from honeybadgermpc.offline import RandomGenerator, TripleGenerator
-from honeybadgermpc.mpc import TaskProgramRunner
+from honeybadgermpc.program_runner import TaskProgramRunner
 
 
 @mark.asyncio

@@ -152,7 +152,7 @@ def test_router():
 
 @fixture()
 def test_runner(test_preprocessing):
-    from honeybadgermpc.mpc import TaskProgramRunner
+    from honeybadgermpc.program_runner import TaskProgramRunner
 
     async def _test_runner(prog, n=3, t=1, to_generate=[], k=1000, mixins=[]):
         for to_gen in to_generate:
