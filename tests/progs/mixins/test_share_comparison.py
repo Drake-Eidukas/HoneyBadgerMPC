@@ -2,11 +2,11 @@ from pytest import mark
 from random import randint
 import asyncio
 from honeybadgermpc.field import GF
-from honeybadgermpc.comparison import less_than
 from honeybadgermpc.mpc import Subgroup
 from honeybadgermpc.progs.mixins.share_arithmetic import (
     BeaverMultiply, BeaverMultiplyArrays, InvertShare, InvertShareArray, DivideShares,
-    DivideShareArrays, Equality)
+    DivideShareArrays)
+from honeybadgermpc.progs.mixins.share_comparison import Equality, LessThan
 
 STANDARD_ARITHMETIC_MIXINS = [
     BeaverMultiply(),
@@ -15,7 +15,8 @@ STANDARD_ARITHMETIC_MIXINS = [
     InvertShareArray(),
     DivideShares(),
     DivideShareArrays(),
-    Equality()
+    Equality(),
+    LessThan()
 ]
 
 PREPROCESSING = ['rands', 'triples', 'zeros', 'cubes', 'bits']
@@ -28,7 +29,7 @@ NUM_COMPARISONS = 3
 
 
 @mark.asyncio
-async def test_comparison(test_preprocessing, galois_field, test_runner):
+async def test_less_than(test_preprocessing, galois_field, test_runner):
     p = FIELD.modulus
     ranges = [0, p//2**128, p//2**64, p//2**32, p//2**16, p]
     constants = [[randint(ranges[i], ranges[i + 1]) for _ in range(NUM_COMPARISONS)]
@@ -41,9 +42,9 @@ async def test_comparison(test_preprocessing, galois_field, test_runner):
             b_shares = [a_shares[0] - FIELD(1), a_shares[1], a_shares[2] + FIELD(1)]
             expected = [False, False, True]
 
-            comparisons = await asyncio.gather(*[less_than(context, a, b)
-                                                 for (a, b) in zip(a_shares, b_shares)])
-            results = await asyncio.gather(*[c.open() for c in comparisons])
+            results = await asyncio.gather(*[(a < b).open()
+                                             for (a, b) in zip(a_shares, b_shares)])
+            # results = await asyncio.gather(*[c.open() for c in comparisons])
 
             for (res, ex) in zip(results, expected):
                 assert bool(res) == ex
