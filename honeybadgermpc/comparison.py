@@ -3,13 +3,21 @@ from .field import GF
 from gmpy2 import num_digits
 
 
-async def comparison(context, a_share, b_share):
+async def less_than(context, a_share, b_share):
+    """ Given two shares, a_share and b_share with corresponding values a and b,
+    compute a < b and output the result as a share.
 
-    """MULTIPARTY COMPARISON - An Improved Multiparty Protocol for
-    Comparison of Secret-shared Values by Tord Ingolf Reistad (2007)
-    This method `greater_than_equal` method which can compare
-    Zp field elements and gives a secret result shared over Zp.
-    `greater_than_equal` method which can compare Zp field
+    args: 
+        context (Mpc): MPC context
+        a_share (context.Share) Share representing a in a < b
+        b_share (context.Share) Share representing b in a < b
+
+    output: 
+        A share representing 1 if a < b, otherwise 0
+
+    Source: 
+    MULTIPARTY COMPARISON - An Improved Multiparty Protocol for
+    Comparison of Secret-shared Values by Tord Ingolf Reistad(2007)
     """
 
     pp_elements = PreProcessedElements()
