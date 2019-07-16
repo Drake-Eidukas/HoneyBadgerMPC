@@ -19,8 +19,9 @@ from .progs.mixins.share_manager import SingleShareManager
 
 
 class Mpc(object):
-    def __init__(self, sid, n, t, myid, send, recv, prog, config,
-                 preproc=None, **prog_args):
+    def __init__(
+        self, sid, n, t, myid, send, recv, prog, config, preproc=None, **prog_args
+    ):
         """ Initialization for MPC context
         args:
             sid (str): Identifier of this MPC context
